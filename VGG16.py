@@ -6,6 +6,7 @@ from keras.layers import Input, MaxPooling2D, GlobalMaxPooling2D
 from keras.utils.data_utils import get_file
 from keras.preprocessing import image
 from keras.applications.imagenet_utils import decode_predictions
+from keras.applications.imagenet_utils import preprocess_input
 import numpy as np
 WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.1/vgg16_weights_tf_dim_ordering_tf_kernels.h5'
 
@@ -50,22 +51,13 @@ def VGG16(num_classes):
     # 分类部分
     # 7x7x512
     # 25088
-    x = Flatten(name = 'flatten')(x)
-    # 256
-    x = Dense(256,activation = 'relu',name = 'fullc1')(x)
-    # 256
-    x = Dense(256,activation = 'relu',name = 'fullc2')(x)
-    # 2
-    x = Dense(num_classes,activation = 'softmax',name = 'fullc3')(x)
+    x = Flatten(name='flatten')(x)
+    x = Dense(4096, activation='relu', name='fc1')(x)
+    x = Dense(4096, activation='relu', name='fc2')(x)
+    x = Dense(num_classes, activation='softmax', name='predictions')(x)
     model = Model(image_input,x,name = 'vgg16')
 
     return model
-
-def preprocess_input(x):
-    x /= 255.
-    x -= 0.5
-    x *= 2.
-    return x
 
 if __name__ == '__main__':
     model = VGG16(1000)
