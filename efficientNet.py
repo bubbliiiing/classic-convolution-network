@@ -9,12 +9,30 @@ import tensorflow as tf
 import numpy as np
 from keras import layers
 from keras.models import Model
-from keras.applications import correct_pad
 from keras.applications import imagenet_utils
 from keras.applications.imagenet_utils import decode_predictions
 from keras.applications.imagenet_utils import _obtain_input_shape
 from keras.utils.data_utils import get_file
 from keras.preprocessing import image
+
+# 用于计算padding的大小
+def correct_pad(inputs, kernel_size):
+    img_dim = 1
+    input_size = backend.int_shape(inputs)[img_dim:(img_dim + 2)]
+
+    if isinstance(kernel_size, int):
+        kernel_size = (kernel_size, kernel_size)
+
+    if input_size[0] is None:
+        adjust = (1, 1)
+    else:
+        adjust = (1 - input_size[0] % 2, 1 - input_size[1] % 2)
+
+    correct = (kernel_size[0] // 2, kernel_size[1] // 2)
+
+    return ((correct[0] - adjust[0], correct[0]),
+            (correct[1] - adjust[1], correct[1]))
+
 
 # 用于下载模型的默认参数
 BASE_WEIGHTS_PATH = (
