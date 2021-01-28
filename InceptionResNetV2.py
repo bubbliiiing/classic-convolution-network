@@ -1,15 +1,21 @@
 import warnings
-import numpy as np
 
-from keras.preprocessing import image
-from keras.models import Model
-from keras.layers import Activation,AveragePooling2D,BatchNormalization,Concatenate
-from keras.layers import Conv2D,Dense,GlobalAveragePooling2D,GlobalMaxPooling2D,Input,Lambda,MaxPooling2D
-from keras.applications.imagenet_utils import decode_predictions
-from keras.utils.data_utils import get_file
+import numpy as np
 from keras import backend as K
+from keras.applications.imagenet_utils import decode_predictions
+from keras.layers import (Activation, AveragePooling2D, BatchNormalization,
+                          Concatenate, Conv2D, Dense, GlobalAveragePooling2D,
+                          GlobalMaxPooling2D, Input, Lambda, MaxPooling2D)
+from keras.models import Model
+from keras.preprocessing import image
+from keras.utils.data_utils import get_file
+
 BASE_WEIGHT_URL = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.7/'
 
+#---------------------------------------#
+#   卷积块
+#   卷积 + 标准化 + 激活函数
+#---------------------------------------#
 def conv2d_bn(x,filters,kernel_size,strides=1,padding='same',activation='relu',use_bias=False,name=None):
     x = Conv2D(filters,
                kernel_size,
@@ -18,9 +24,8 @@ def conv2d_bn(x,filters,kernel_size,strides=1,padding='same',activation='relu',u
                use_bias=use_bias,
                name=name)(x)
     if not use_bias:
-        bn_axis = 1 if K.image_data_format() == 'channels_first' else 3
         bn_name = None if name is None else name + '_bn'
-        x = BatchNormalization(axis=bn_axis, scale=False, name=bn_name)(x)
+        x = BatchNormalization(scale=False, name=bn_name)(x)
     if activation is not None:
         ac_name = None if name is None else name + '_ac'
         x = Activation(activation, name=ac_name)(x)
@@ -29,23 +34,30 @@ def conv2d_bn(x,filters,kernel_size,strides=1,padding='same',activation='relu',u
 def inception_resnet_block(x, scale, block_type, block_idx, activation='relu'):
     if block_type == 'block35':
         branch_0 = conv2d_bn(x, 32, 1)
+
         branch_1 = conv2d_bn(x, 32, 1)
         branch_1 = conv2d_bn(branch_1, 32, 3)
+
         branch_2 = conv2d_bn(x, 32, 1)
         branch_2 = conv2d_bn(branch_2, 48, 3)
         branch_2 = conv2d_bn(branch_2, 64, 3)
+
         branches = [branch_0, branch_1, branch_2]
     elif block_type == 'block17':
         branch_0 = conv2d_bn(x, 192, 1)
+
         branch_1 = conv2d_bn(x, 128, 1)
         branch_1 = conv2d_bn(branch_1, 160, [1, 7])
         branch_1 = conv2d_bn(branch_1, 192, [7, 1])
+
         branches = [branch_0, branch_1]
     elif block_type == 'block8':
         branch_0 = conv2d_bn(x, 192, 1)
+
         branch_1 = conv2d_bn(x, 192, 1)
         branch_1 = conv2d_bn(branch_1, 224, [1, 3])
         branch_1 = conv2d_bn(branch_1, 256, [3, 1])
+
         branches = [branch_0, branch_1]
     else:
         raise ValueError('Unknown Inception-ResNet block type. '
@@ -54,7 +66,7 @@ def inception_resnet_block(x, scale, block_type, block_idx, activation='relu'):
 
     block_name = block_type + '_' + str(block_idx)
     mixed = Concatenate(name=block_name + '_mixed')(branches)
-    up = conv2d_bn(mixed,K.int_shape(x)[3],1,activation=None,use_bias=True,name=block_name + '_conv')
+    up = conv2d_bn(mixed, K.int_shape(x)[3], 1, activation=None,use_bias=True,name=block_name + '_conv')
 
     x = Lambda(lambda inputs, scale: inputs[0] + inputs[1] * scale,
                output_shape=K.int_shape(x)[1:],
@@ -72,34 +84,34 @@ def InceptionResNetV2(input_shape=[299,299,3],
 
     img_input = Input(shape=input_shape)
 
-    # Stem block: 299,299,3 -> 35 x 35 x 192
+    # 299,299,3 -> 35,35,192
     x = conv2d_bn(img_input, 32, 3, strides=2, padding='valid')
     x = conv2d_bn(x, 32, 3, padding='valid')
     x = conv2d_bn(x, 64, 3)
     x = MaxPooling2D(3, strides=2)(x)
+
     x = conv2d_bn(x, 80, 1, padding='valid')
     x = conv2d_bn(x, 192, 3, padding='valid')
     x = MaxPooling2D(3, strides=2)(x)
 
-    # Mixed 5b (Inception-A block):35 x 35 x 192 -> 35 x 35 x 320
+    # 35,35,192 -> 35,35,320
     branch_0 = conv2d_bn(x, 96, 1)
+
     branch_1 = conv2d_bn(x, 48, 1)
     branch_1 = conv2d_bn(branch_1, 64, 5)
+
     branch_2 = conv2d_bn(x, 64, 1)
     branch_2 = conv2d_bn(branch_2, 96, 3)
     branch_2 = conv2d_bn(branch_2, 96, 3)
+
     branch_pool = AveragePooling2D(3, strides=1, padding='same')(x)
     branch_pool = conv2d_bn(branch_pool, 64, 1)
     branches = [branch_0, branch_1, branch_2, branch_pool]
-
     x = Concatenate(name='mixed_5b')(branches)
 
     # 10次Inception-ResNet-A block:35 x 35 x 320 -> 35 x 35 x 320
     for block_idx in range(1, 11):
-        x = inception_resnet_block(x,
-                                   scale=0.17,
-                                   block_type='block35',
-                                   block_idx=block_idx)
+        x = inception_resnet_block(x, scale=0.17, block_type='block35', block_idx=block_idx)
 
     # Reduction-A block:35 x 35 x 320 -> 17 x 17 x 1088
     branch_0 = conv2d_bn(x, 384, 3, strides=2, padding='valid')
@@ -152,7 +164,6 @@ def InceptionResNetV2(input_shape=[299,299,3],
 
     # 创建模型
     model = Model(inputs, x, name='inception_resnet_v2')
-
     return model
 
 def preprocess_input(x):
@@ -165,13 +176,14 @@ if __name__ == '__main__':
     model = InceptionResNetV2()
     fname = 'inception_resnet_v2_weights_tf_dim_ordering_tf_kernels.h5'
     weights_path = get_file(fname,BASE_WEIGHT_URL + fname,cache_subdir='models',file_hash='e693bd0210a403b3192acc6073ad2e96')
-    model.load_weights("inception_resnet_v2_weights_tf_dim_ordering_tf_kernels.h5")
+    model.load_weights(weights_path)
+
     img_path = 'elephant.jpg'
     img = image.load_img(img_path, target_size=(299, 299))
     x = image.img_to_array(img)
     x = np.expand_dims(x, axis=0)
-
     x = preprocess_input(x)
+    print('Input image shape:', x.shape)
 
     preds = model.predict(x)
     print('Predicted:', decode_predictions(preds))

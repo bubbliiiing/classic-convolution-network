@@ -1,25 +1,22 @@
-from __future__ import print_function
-from __future__ import absolute_import
+from __future__ import absolute_import, print_function
 
 import warnings
+
 import numpy as np
-
-from keras.preprocessing import image
-
-from keras.models import Model
-from keras import layers
-from keras.layers import Dense,Input,BatchNormalization,Activation,Conv2D,SeparableConv2D,MaxPooling2D
-from keras.layers import GlobalAveragePooling2D,GlobalMaxPooling2D
 from keras import backend as K
+from keras import layers
 from keras.applications.imagenet_utils import decode_predictions
+from keras.layers import (Activation, BatchNormalization, Conv2D, Dense,
+                          GlobalAveragePooling2D, GlobalMaxPooling2D, Input,
+                          MaxPooling2D, SeparableConv2D)
+from keras.models import Model
+from keras.preprocessing import image
 from keras.utils.data_utils import get_file
+
 TF_WEIGHTS_PATH = 'https://github.com/fchollet/deep-learning-models/releases/download/v0.4/xception_weights_tf_dim_ordering_tf_kernels.h5'
 
 def Xception(input_shape = [299,299,3],classes=1000):
-
-
     img_input = Input(shape=input_shape)
-
     #--------------------------#
     # Entry flow
     #--------------------------#
@@ -47,7 +44,6 @@ def Xception(input_shape = [299,299,3],classes=1000):
     x = SeparableConv2D(128, (3, 3), padding='same', use_bias=False, name='block2_sepconv2')(x)
     x = BatchNormalization(name='block2_sepconv2_bn')(x)
     x = MaxPooling2D((3, 3), strides=(2, 2), padding='same', name='block2_pool')(x)
-
     x = layers.add([x, residual])
 
     #--------------------#
@@ -151,21 +147,17 @@ def Xception(input_shape = [299,299,3],classes=1000):
 
     return model
 
-
 def preprocess_input(x):
     x /= 255.
     x -= 0.5
     x *= 2.
     return x
 
-
 if __name__ == '__main__':
     model = Xception()
-    weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels.h5',
-                                    TF_WEIGHTS_PATH,
-                                    cache_subdir='models')
+    weights_path = get_file('xception_weights_tf_dim_ordering_tf_kernels.h5', TF_WEIGHTS_PATH, cache_subdir='models')
     model.load_weights(weights_path)
-    # model.summary()
+
     img_path = 'elephant.jpg'
     img = image.load_img(img_path, target_size=(299, 299))
     x = image.img_to_array(img)
@@ -174,5 +166,4 @@ if __name__ == '__main__':
     print('Input image shape:', x.shape)
 
     preds = model.predict(x)
-    print(np.argmax(preds))
     print('Predicted:', decode_predictions(preds))
